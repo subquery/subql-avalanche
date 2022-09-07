@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  isRuntimeDataSourceV0_2_0,
-  SubstrateDataSource,
-} from '@subql/common-avalanche';
-import {
   AvalancheBlock,
   AvalancheBlockWrapper,
   AvalancheTransactionFilter,
