@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2022-09-07
+
+### Changed
+- Sync with Substrate SDK to include all latest features like:
+  - Worker threads.
+  - POI improvements.
+  - Use `@subql/node-core` package.
+  - Store improvements like bulk operations and paging results.
+
+### Added
+- Support for api keys via url parameters and convert them to headers.
+
 ## [0.3.0] - 2022-07-28
 ### Fixed
 - Error logging erro with arguments with bigint values.
