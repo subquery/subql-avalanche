@@ -124,29 +124,6 @@ export class CustomHandler implements SubqlCustomHandler {
   filter?: Record<string, unknown>;
 }
 
-export class RuntimeMapping implements SubqlMapping {
-  @Transform((params) => {
-    const handlers: SubqlHandler[] = params.value;
-    return handlers.map((handler) => {
-      switch (handler.kind) {
-        case AvalancheHandlerKind.Event:
-          return plainToClass(EventHandler, handler);
-        case AvalancheHandlerKind.Call:
-          return plainToClass(CallHandler, handler);
-        case AvalancheHandlerKind.Block:
-          return plainToClass(BlockHandler, handler);
-        default:
-          throw new Error(`handler ${(handler as any).kind} not supported`);
-      }
-    });
-  })
-  @IsArray()
-  @ValidateNested()
-  handlers: SubqlHandler[];
-  @IsString()
-  file: string;
-}
-
 export class AvalancheMapping implements SubqlMapping {
   @Transform((params) => {
     const handlers: SubqlHandler[] = params.value;
@@ -182,7 +159,7 @@ export class CustomMapping implements SubqlMapping<SubqlCustomHandler> {
 export class RuntimeDataSourceBase<M extends SubqlMapping<SubqlRuntimeHandler>> implements SubqlRuntimeDatasource<M> {
   @IsEnum(AvalancheDatasourceKind, {groups: [AvalancheDatasourceKind.Runtime]})
   kind: AvalancheDatasourceKind.Runtime;
-  @Type(() => RuntimeMapping)
+  @Type(() => AvalancheMapping)
   @ValidateNested()
   mapping: M;
   @IsOptional()

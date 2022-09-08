@@ -117,7 +117,7 @@ export class DeploymentV1_0_0 {
   @Type(() => AvalancheCustomDataSourceV0_3_0Impl, {
     discriminator: {
       property: 'kind',
-      subTypes: [{value: AvalancheCustomDataSourceV0_3_0Impl, name: 'avalanche/Runtime'}],
+      subTypes: [{value: AvalancheRuntimeDataSourceV0_3_0Impl, name: 'avalanche/Runtime'}],
     },
     keepDiscriminatorProperty: true,
   })
@@ -144,7 +144,7 @@ export class ProjectManifestV1_0_0Impl<D extends object = DeploymentV1_0_0>
   @Type(() => AvalancheCustomDataSourceV0_3_0Impl, {
     discriminator: {
       property: 'kind',
-      subTypes: [{value: AvalancheCustomDataSourceV0_3_0Impl, name: 'avalanche/Runtime'}],
+      subTypes: [{value: AvalancheRuntimeDataSourceV0_3_0Impl, name: 'avalanche/Runtime'}],
     },
     keepDiscriminatorProperty: true,
   })

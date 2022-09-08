@@ -19,8 +19,8 @@ export enum AvalancheDatasourceKind {
 
 export enum AvalancheHandlerKind {
   Block = 'avalanche/BlockHandler',
-  Call = 'avalanche/CallHandler',
-  Event = 'avalanche/EventHandler',
+  Call = 'avalanche/TransactionHandler',
+  Event = 'avalanche/LogHandler',
 }
 
 export type AvalancheRuntimeHandlerInputMap = {
