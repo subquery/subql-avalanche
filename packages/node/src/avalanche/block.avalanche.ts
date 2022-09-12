@@ -26,7 +26,19 @@ export class AvalancheBlockWrapped implements AvalancheBlockWrapper {
     this._logs = flatten(_block.transactions.map((tx) => tx.receipt.logs)).map(
       (log) => formatLog(log, _block),
     ) as AvalancheLog<AvalancheResult>[];
-    this.block.logs = this._logs;
+    this.block.logs = this._logs.map((log) => {
+      const logCopy = { ...log };
+      logCopy.block = undefined;
+      return logCopy;
+    });
+    this.block.transactions = this.block.transactions.map((tx) => {
+      tx.receipt.logs = tx.receipt.logs.map((log) => {
+        const logCopy = { ...log };
+        logCopy.block = undefined;
+        return logCopy;
+      });
+      return tx;
+    });
   }
 
   get block(): AvalancheBlock {
