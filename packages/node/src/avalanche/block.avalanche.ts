@@ -108,15 +108,14 @@ export class AvalancheBlockWrapped implements AvalancheBlockWrapper {
 
     if (filter.topics) {
       for (let i = 0; i < Math.min(filter.topics.length, 4); i++) {
-        if (!log.topics[i]) {
-          break;
-        }
-
         const topic = filter.topics[i];
         if (!topic) {
           continue;
         }
 
+        if (!log.topics[i]) {
+          return false;
+        }
         if (!hexStringEq(eventToTopic(topic), log.topics[i])) {
           return false;
         }
