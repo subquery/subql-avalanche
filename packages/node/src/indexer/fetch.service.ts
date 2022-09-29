@@ -198,8 +198,15 @@ export class FetchService implements OnApplicationShutdown {
       BLOCK_TIME_VARIANCE = Math.min(BLOCK_TIME_VARIANCE, CHAIN_INTERVAL);
 
       this.schedulerRegistry.addInterval(
-        'getLatestBlockHead',
+        'getBestBlockHead',
         setInterval(() => void this.getBestBlockHead(), BLOCK_TIME_VARIANCE),
+      );
+      this.schedulerRegistry.addInterval(
+        'getLatestBlockHead',
+        setInterval(
+          () => void this.getFinalizedBlockHead(),
+          BLOCK_TIME_VARIANCE,
+        ),
       );
     }
     await this.syncDynamicDatascourcesFromMeta();
@@ -228,6 +235,7 @@ export class FetchService implements OnApplicationShutdown {
 
   @Interval(BLOCK_TIME_VARIANCE * 1000)
   async getFinalizedBlockHead(): Promise<void> {
+    console.log('hi from final');
     if (!this.api) {
       logger.debug(`Skip fetch finalized block until API is ready`);
       return;
@@ -247,6 +255,7 @@ export class FetchService implements OnApplicationShutdown {
 
   @Interval(BLOCK_TIME_VARIANCE * 1000)
   async getBestBlockHead(): Promise<void> {
+    console.log('hi from best');
     if (!this.api) {
       logger.debug(`Skip fetch best block until API is ready`);
       return;
