@@ -199,10 +199,6 @@ export class FetchService implements OnApplicationShutdown {
 
       this.schedulerRegistry.addInterval(
         'getBestBlockHead',
-        setInterval(() => void this.getBestBlockHead(), BLOCK_TIME_VARIANCE),
-      );
-      this.schedulerRegistry.addInterval(
-        'getLatestBlockHead',
         setInterval(
           () => void this.getFinalizedBlockHead(),
           BLOCK_TIME_VARIANCE,
