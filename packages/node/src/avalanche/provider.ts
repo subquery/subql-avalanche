@@ -17,24 +17,27 @@ import {
 } from '@ethersproject/abstract-provider';
 import { Network } from '@ethersproject/networks';
 import { Deferrable, resolveProperties } from '@ethersproject/properties';
-import Avalanche from 'avalanche';
 import { EVMAPI } from 'avalanche/dist/apis/evm';
-import { BigNumber, BigNumberish } from 'ethers';
+import { BigNumber, BigNumberish, ethers } from 'ethers';
 
 function BNishToHex(value: BigNumberish): string {
   return BigNumber.from(value).toHexString();
 }
 
 export class CChainProvider extends Provider {
-  private api: EVMAPI;
+  //private api: EVMAPI | ethers.providers.Web3Provider;
 
   constructor(
-    avalanche: Avalanche,
+    private api: EVMAPI | ethers.providers.Web3Provider,
+    private callMethod: (
+      method: string,
+      params: any[],
+      api: EVMAPI | ethers.providers.Web3Provider,
+    ) => Promise<any>,
     private readonly blockHeight: number,
     readonly path = '/ext/bc/C/rpc',
   ) {
     super();
-    this.api = avalanche.CChain();
   }
 
   private async resolveHeight(
@@ -76,10 +79,10 @@ export class CChainProvider extends Provider {
   ): Promise<BigNumber> {
     const {
       data: { result },
-    } = await this.api.callMethod(
+    } = await this.callMethod(
       'eth_getBalance',
       [await addressOrName, await this.resolveHeight(blockTag)],
-      this.path,
+      this.api,
     );
 
     return BigNumber.from(result);
@@ -91,10 +94,10 @@ export class CChainProvider extends Provider {
   ): Promise<number> {
     const {
       data: { result },
-    } = await this.api.callMethod(
+    } = await this.callMethod(
       'eth_getTransactionCount',
       [await addressOrName, await this.resolveHeight(blockTag)],
-      this.path,
+      this.api,
     );
 
     return result;
@@ -105,10 +108,10 @@ export class CChainProvider extends Provider {
   ): Promise<string> {
     const {
       data: { result },
-    } = await this.api.callMethod(
+    } = await this.callMethod(
       'eth_getCode',
       [await addressOrName, await this.resolveHeight(blockTag)],
-      this.path,
+      this.api,
     );
 
     return result;
@@ -121,10 +124,10 @@ export class CChainProvider extends Provider {
   ): Promise<string> {
     const {
       data: { result },
-    } = await this.api.callMethod(
+    } = await this.callMethod(
       'eth_getStorageAt',
       [await addressOrName, await position, await this.resolveHeight(blockTag)],
-      this.path,
+      this.api,
     );
 
     return result;
@@ -145,7 +148,7 @@ export class CChainProvider extends Provider {
 
     const {
       data: { result },
-    } = await this.api.callMethod(
+    } = await this.callMethod(
       'eth_call',
       [
         {
@@ -157,7 +160,7 @@ export class CChainProvider extends Provider {
         },
         await this.resolveHeight(blockTag),
       ],
-      this.path,
+      this.api,
     );
 
     return result;

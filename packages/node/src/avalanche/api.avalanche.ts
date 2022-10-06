@@ -19,8 +19,7 @@ import {
 } from '@subql/types-avalanche';
 import { Avalanche } from 'avalanche';
 import { EVMAPI } from 'avalanche/dist/apis/evm';
-import { IndexAPI } from 'avalanche/dist/apis/index';
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { AvalancheBlockWrapped } from './block.avalanche';
 import { CChainProvider } from './provider';
 import {
@@ -28,6 +27,7 @@ import {
   formatReceipt,
   formatTransaction,
 } from './utils.avalanche';
+const Web3WsProvider = require('web3-providers-ws');
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version: packageVersion } = require('../../package.json');
@@ -61,18 +61,15 @@ async function loadAssets(
 }
 
 export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
-  private client: Avalanche;
-  private indexApi: IndexAPI;
+  private client: Avalanche | ethers.providers.Web3Provider;
   private genesisBlock: Record<string, any>;
-  private encoding: string;
-  private baseUrl: string;
   private cchain: EVMAPI;
   private contractInterfaces: Record<string, Interface> = {};
   private chainId: string;
+  private callMethod: (method: string, params: any[]) => Promise<any>;
+  protocolStr: string;
 
   constructor(private options: AvalancheOptions) {
-    this.encoding = 'cb58';
-
     assert(options.endpoint, 'Network endpoint not provided');
 
     const { hostname, pathname, port, protocol, searchParams } = new URL(
@@ -81,62 +78,66 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
     const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 10 });
     const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 10 });
 
-    const protocolStr = protocol.replace(':', '');
+    this.protocolStr = protocol.replace(':', '');
     const portNum = port
       ? parseInt(port, 10)
-      : protocolStr === 'https'
+      : this.protocolStr === 'https'
       ? undefined
       : 80;
 
-    this.client = new Avalanche(hostname + pathname, portNum, protocolStr);
+    if (['http', 'https'].includes(this.protocolStr)) {
+      this.client = new Avalanche(
+        hostname + pathname,
+        portNum,
+        this.protocolStr,
+      );
 
-    this.client.setRequestConfig('httpAgent', httpAgent as any);
-    this.client.setRequestConfig('httpsAgent', httpsAgent as any);
+      this.client.setRequestConfig('httpAgent', httpAgent as any);
+      this.client.setRequestConfig('httpsAgent', httpsAgent as any);
 
-    if (searchParams.get('apikey')) {
-      // OnFinality supports api key via params or `apikey` header, but the api doesn't support params so we convert to header
-      this.client.setHeader('apikey', searchParams.get('apikey'));
-      // Support for other potential api providers
-      this.client.setAuthToken(searchParams.get('apikey'));
-    }
+      if (searchParams.get('apikey')) {
+        // OnFinality supports api key via params or `apikey` header, but the api doesn't support params so we convert to header
+        this.client.setHeader('apikey', searchParams.get('apikey'));
+        // Support for other potential api providers
+        this.client.setAuthToken(searchParams.get('apikey'));
+      }
 
-    if (this.options.token) {
-      this.client.setAuthToken(this.options.token);
-    }
-    this.indexApi = this.client.Index();
-    this.cchain = this.client.CChain();
+      this.client.setHeader('User-Agent', `SubQuery-Node ${packageVersion}`);
 
-    switch (this.options.subnet) {
-      case 'XV':
-        this.baseUrl = '/ext/index/X/vtx';
-        break;
-      case 'XT':
-        this.baseUrl = '/ext/index/X/tx';
-        break;
-      case 'C':
-        this.baseUrl = '/ext/index/C/block';
-        break;
-      case 'P':
-        this.baseUrl = '/ext/index/P/block';
-        break;
-      default:
-        this.baseUrl = `/ext/index/${this.options.subnet}/block`;
-        break;
+      if (this.options.token) {
+        this.client.setAuthToken(this.options.token);
+      }
+      this.cchain = this.client.CChain();
+      this.callMethod = this.rpcCall;
+    } else if (['wss', 'ws'].includes(this.protocolStr)) {
+      logger.info('here');
+      const wsOption = {
+        headers: {
+          'User-Agent': `Subquery-Node ${packageVersion}`,
+        },
+        clientConfig: {
+          keepAlive: true,
+        },
+      };
+      if (searchParams.get('apiKey')) {
+        wsOption.headers.apiKey = searchParams.get('apiKey');
+      }
+      const url = new URL(options.endpoint);
+      url.pathname = `${url.pathname}ext/bc/C/ws`;
+
+      const provider = new Web3WsProvider(url.toString(), options);
+      this.client = new ethers.providers.Web3Provider(provider);
+      this.callMethod = this.wsCall;
     }
   }
 
   async init(): Promise<void> {
-    this.chainId = await this.client.Info().getNetworkName();
+    this.chainId = await this.callMethod('net_version', []);
 
-    this.client.setHeader('User-Agent', `SubQuery-Node ${packageVersion}`);
-
-    this.genesisBlock = (
-      await this.cchain.callMethod(
-        'eth_getBlockByNumber',
-        ['0x0', true],
-        `/ext/bc/${this.options.subnet}/rpc`,
-      )
-    ).data.result;
+    this.genesisBlock = await this.callMethod('eth_getBlockByNumber', [
+      '0x0',
+      false,
+    ]);
   }
 
   getChainId(): string {
@@ -160,14 +161,29 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
     return this.getLastHeight();
   }
 
-  async getLastHeight(): Promise<number> {
+  async rpcCall(method: string, params: any[]): Promise<any> {
     const res = await this.cchain.callMethod(
-      'eth_blockNumber',
-      [],
+      method,
+      params,
       `/ext/bc/${this.options.subnet}/rpc`,
     );
 
-    return BigNumber.from(res.data.result).toNumber();
+    return res.data.result;
+  }
+
+  async wsCall(method: string, params: any[]): Promise<any> {
+    const res = await (this.client as ethers.providers.Web3Provider).send(
+      method,
+      params,
+    );
+
+    return res;
+  }
+
+  async getLastHeight(): Promise<number> {
+    const res = await this.callMethod('eth_blockNumber', []);
+
+    return BigNumber.from(res).toNumber();
   }
 
   async fetchBlocks(bufferBlocks: number[]): Promise<AvalancheBlockWrapper[]> {
@@ -175,25 +191,21 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
       bufferBlocks.map(async (num) => {
         try {
           // Fetch Block
-          const block_promise = await this.cchain.callMethod(
-            'eth_getBlockByNumber',
-            [`0x${num.toString(16)}`, true],
-            `/ext/bc/${this.options.subnet}/rpc`,
-          );
+          const block_promise = await this.callMethod('eth_getBlockByNumber', [
+            ethers.utils.hexValue(num),
+            true,
+          ]);
 
-          const block = formatBlock(block_promise.data.result);
+          const block = formatBlock(block_promise);
 
           // Get transaction receipts
           block.transactions = await Promise.all(
             block.transactions.map(async (tx) => {
               const transaction = formatTransaction(tx);
-              const receipt = (
-                await this.cchain.callMethod(
-                  'eth_getTransactionReceipt',
-                  [tx.hash],
-                  `/ext/bc/${this.options.subnet}/rpc`,
-                )
-              ).data.result;
+              const receipt = await this.callMethod(
+                'eth_getTransactionReceipt',
+                [tx.hash],
+              );
               transaction.receipt = formatReceipt(receipt, block);
               return transaction;
             }),
@@ -210,14 +222,50 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
   }
 
   freezeApi(processor: any, blockContent: BlockWrapper): void {
-    processor.freeze(
-      new CChainProvider(
-        this.client,
-        blockContent.blockHeight,
-        `/ext/bc/${this.options.subnet}/rpc`,
-      ),
-      'api',
-    );
+    if (['https', 'http'].includes(this.protocolStr)) {
+      const callMethod = async (
+        method: string,
+        params: any[],
+        api: EVMAPI,
+      ): Promise<any> => {
+        const res = await api.callMethod(
+          method,
+          params,
+          `/ext/bc/${this.options.subnet}/rpc`,
+        );
+
+        return res.data.result;
+      };
+      processor.freeze(
+        new CChainProvider(
+          this.cchain,
+          callMethod,
+          blockContent.blockHeight,
+          `/ext/bc/${this.options.subnet}/rpc`,
+        ),
+        'api',
+      );
+    } else if (['wss', 'ws'].includes(this.protocolStr)) {
+      const callMethod = async (
+        method: string,
+        params: any[],
+        api: ethers.providers.Web3Provider,
+      ): Promise<any> => {
+        const res = await api.send(method, params);
+
+        return res.data.result;
+      };
+
+      processor.freeze(
+        new CChainProvider(
+          this.client as ethers.providers.Web3Provider,
+          callMethod,
+          blockContent.blockHeight,
+          `/ext/bc/${this.options.subnet}/rpc`,
+        ),
+        'api',
+      );
+    }
   }
 
   private buildInterface(
