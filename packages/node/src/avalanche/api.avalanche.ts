@@ -67,7 +67,9 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
   private contractInterfaces: Record<string, Interface> = {};
   private chainId: string;
   private callMethod: (method: string, params: any[]) => Promise<any>;
+  private blockHead: number;
   protocolStr: string;
+  getFinalizedBlockHeight: () => Promise<number>;
 
   constructor(private options: AvalancheOptions) {
     assert(options.endpoint, 'Network endpoint not provided');
@@ -109,14 +111,20 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
       }
       this.cchain = this.client.CChain();
       this.callMethod = this.rpcCall;
+      this.getFinalizedBlockHeight = this.getLastHeight;
     } else if (['wss', 'ws'].includes(this.protocolStr)) {
-      logger.info('here');
       const wsOption = {
         headers: {
           'User-Agent': `Subquery-Node ${packageVersion}`,
         },
         clientConfig: {
           keepAlive: true,
+        },
+        reconnect: {
+          auto: true,
+          delay: 5000, // ms
+          maxAttempts: 5,
+          onTimeout: false,
         },
       };
       if (searchParams.get('apiKey')) {
@@ -128,11 +136,23 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
       const provider = new Web3WsProvider(url.toString(), options);
       this.client = new ethers.providers.Web3Provider(provider);
       this.callMethod = this.wsCall;
+      this.getFinalizedBlockHeight = async () =>
+        Promise.resolve(this.blockHead);
     }
   }
 
   async init(): Promise<void> {
     this.chainId = await this.callMethod('net_version', []);
+
+    if (['wss', 'ws'].includes(this.protocolStr)) {
+      this.blockHead = await this.getLastHeight();
+      (this.client as ethers.providers.Web3Provider).on(
+        'block',
+        (blockNumber) => {
+          this.blockHead = blockNumber;
+        },
+      );
+    }
 
     this.genesisBlock = await this.callMethod('eth_getBlockByNumber', [
       '0x0',
@@ -154,11 +174,6 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
 
   getSpecName(): string {
     return 'avalanche';
-  }
-
-  async getFinalizedBlockHeight(): Promise<number> {
-    // Doesn't seem to be a difference between finalized and latest
-    return this.getLastHeight();
   }
 
   async rpcCall(method: string, params: any[]): Promise<any> {
