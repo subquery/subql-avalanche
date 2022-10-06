@@ -15,7 +15,6 @@ import {
   checkMemoryUsage,
   NodeConfig,
   IndexerEvent,
-  getYargsOption,
   getLogger,
 } from '@subql/node-core';
 import {
@@ -29,7 +28,6 @@ import { calcInterval } from '../avalanche/utils.avalanche';
 import { SubqlProjectDs, SubqueryProject } from '../configure/SubqueryProject';
 import { eventToTopic, functionToSighash } from '../utils/string';
 import { Dictionary, DictionaryService } from './dictionary.service';
-import { DsProcessorService } from './ds-processor.service';
 import { DynamicDsService } from './dynamic-ds.service';
 import { IBlockDispatcher } from './worker/block-dispatcher.service';
 
@@ -39,8 +37,6 @@ const DICTIONARY_MAX_QUERY_SIZE = 10000;
 const CHECK_MEMORY_INTERVAL = 60000;
 const MINIMUM_BATCH_SIZE = 5;
 const INTERVAL_PERCENT = 0.9;
-
-const { argv } = getYargsOption();
 
 function eventFilterToQueryEntry(
   filter: AvalancheLogFilter,
@@ -120,6 +116,12 @@ export class FetchService implements OnApplicationShutdown {
   }
 
   onApplicationShutdown(): void {
+    try {
+      this.schedulerRegistry.deleteInterval('getFinalizedBlockHead');
+      this.schedulerRegistry.deleteInterval('getBestBlockHead');
+    } catch (e) {
+      //ignore if interval not exist
+    }
     this.isShutdown = true;
   }
 
@@ -198,7 +200,14 @@ export class FetchService implements OnApplicationShutdown {
       BLOCK_TIME_VARIANCE = Math.min(BLOCK_TIME_VARIANCE, CHAIN_INTERVAL);
 
       this.schedulerRegistry.addInterval(
-        'getLatestBlockHead',
+        'getFinalizedBlockHead',
+        setInterval(
+          () => void this.getFinalizedBlockHead(),
+          BLOCK_TIME_VARIANCE,
+        ),
+      );
+      this.schedulerRegistry.addInterval(
+        'getBestBlockHead',
         setInterval(() => void this.getBestBlockHead(), BLOCK_TIME_VARIANCE),
       );
     }
@@ -217,8 +226,8 @@ export class FetchService implements OnApplicationShutdown {
 
   @Interval(CHECK_MEMORY_INTERVAL)
   checkBatchScale(): void {
-    if (argv['scale-batch-size']) {
-      const scale = checkMemoryUsage(this.batchSizeScale);
+    if (this.nodeConfig['scale-batch-size']) {
+      const scale = checkMemoryUsage(this.batchSizeScale, this.nodeConfig);
 
       if (this.batchSizeScale !== scale) {
         this.batchSizeScale = scale;
@@ -402,7 +411,9 @@ export class FetchService implements OnApplicationShutdown {
     startBlockHeight: number,
   ): boolean {
     if (metaData.genesisHash !== this.api.getGenesisHash()) {
-      logger.warn(`Dictionary is disabled since now`);
+      logger.error(
+        'The dictionary that you have specified does not match the chain you are indexing, it will be ignored. Please update your project manifest to reference the correct dictionary',
+      );
       this.useDictionary = false;
       this.eventEmitter.emit(IndexerEvent.UsingDictionary, {
         value: Number(this.useDictionary),
