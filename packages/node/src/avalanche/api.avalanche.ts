@@ -120,7 +120,7 @@ export class AvalancheApi implements ApiWrapper<AvalancheBlockWrapper> {
         },
       };
       if (searchParams.get('apiKey')) {
-        wsOption.headers.apiKey = searchParams.get('apiKey');
+        (wsOption.headers as any).apiKey = searchParams.get('apiKey');
       }
       const url = new URL(options.endpoint);
       url.pathname = `${url.pathname}ext/bc/C/ws`;
