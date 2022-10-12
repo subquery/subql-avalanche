@@ -15,6 +15,7 @@ import {
   checkMemoryUsage,
   NodeConfig,
   IndexerEvent,
+  Dictionary,
   getLogger,
 } from '@subql/node-core';
 import {
@@ -27,7 +28,7 @@ import { range, sortBy, uniqBy } from 'lodash';
 import { calcInterval } from '../avalanche/utils.avalanche';
 import { SubqlProjectDs, SubqueryProject } from '../configure/SubqueryProject';
 import { eventToTopic, functionToSighash } from '../utils/string';
-import { Dictionary, DictionaryService } from './dictionary.service';
+import { DictionaryService } from './dictionary.service';
 import { DynamicDsService } from './dynamic-ds.service';
 import { IBlockDispatcher } from './worker/block-dispatcher.service';
 
