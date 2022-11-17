@@ -40,6 +40,9 @@ export class BlockFilter implements AvalancheBlockFilter {
   @IsOptional()
   @IsInt()
   modulo?: number;
+  @IsOptional()
+  @IsString()
+  timestamp?: string;
 }
 
 export class LogFilter implements AvalancheLogFilter {

@@ -40,7 +40,6 @@ export class SandboxService {
       );
       this.processorCache[entry] = processor;
     }
-
     api.freezeApi(processor, blockContent);
     return processor;
   }
