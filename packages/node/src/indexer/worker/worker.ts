@@ -21,6 +21,7 @@ import { threadId } from 'node:worker_threads';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { registerWorker, getLogger, NestLogger } from '@subql/node-core';
+import { isArray } from 'lodash';
 import { IndexerManager } from '../indexer.manager';
 import { WorkerModule } from './worker.module';
 import {
@@ -62,7 +63,9 @@ async function initWorker(): Promise<void> {
 
 async function fetchBlock(height: number): Promise<FetchBlockResponse> {
   assert(workerService, 'Not initialised');
-
+  if (isArray(height)) {
+    height = height[0];
+  }
   return workerService.fetchBlock(height);
 }
 
