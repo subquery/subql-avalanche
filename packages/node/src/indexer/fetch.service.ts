@@ -20,6 +20,8 @@ import {
   Dictionary,
   getLogger,
   profiler,
+  transformBypassBlocks,
+  cleanedBatchBlocks,
 } from '@subql/node-core';
 import {
   DictionaryQueryEntry,
@@ -29,7 +31,8 @@ import {
   SubqlCustomHandler,
   SubqlHandler,
 } from '@subql/types-avalanche';
-import { range, sortBy, uniqBy } from 'lodash';
+import { MetaData } from '@subql/utils';
+import { range, sortBy, uniqBy, without } from 'lodash';
 import { calcInterval } from '../avalanche/utils.avalanche';
 import { SubqlProjectDs, SubqueryProject } from '../configure/SubqueryProject';
 import { isBaseHandler, isCustomHandler } from '../utils/project';
@@ -105,15 +108,15 @@ export class FetchService implements OnApplicationShutdown {
   private latestBestHeight: number;
   private latestFinalizedHeight: number;
   private isShutdown = false;
-  private parentSpecVersion: number;
   private batchSizeScale: number;
   private templateDynamicDatasouces: SubqlProjectDs[];
   private dictionaryGenesisMatches = true;
+  private bypassBlocks: number[] = [];
 
   constructor(
     private apiService: ApiService,
     private nodeConfig: NodeConfig,
-    private project: SubqueryProject,
+    @Inject('ISubqueryProject') private project: SubqueryProject,
     @Inject('IBlockDispatcher') private blockDispatcher: IBlockDispatcher,
     private dsProcessorService: DsProcessorService,
     private dictionaryService: DictionaryService,
@@ -244,6 +247,11 @@ export class FetchService implements OnApplicationShutdown {
   }
 
   async init(startHeight: number): Promise<void> {
+    if (this.project.network?.bypassBlocks !== undefined) {
+      this.bypassBlocks = transformBypassBlocks(
+        this.project.network.bypassBlocks,
+      ).filter((blk) => blk >= startHeight);
+    }
     if (this.api) {
       const CHAIN_INTERVAL = calcInterval(this.api) * INTERVAL_PERCENT;
 
@@ -274,6 +282,10 @@ export class FetchService implements OnApplicationShutdown {
     void this.startLoop(startHeight);
   }
 
+  getUseDictionary(): boolean {
+    return this.useDictionary;
+  }
+
   @Interval(CHECK_MEMORY_INTERVAL)
   checkBatchScale(): void {
     if (this.nodeConfig['scale-batch-size']) {
@@ -302,7 +314,7 @@ export class FetchService implements OnApplicationShutdown {
         }
       }
     } catch (e) {
-      logger.warn(e, `Having a problem when get finalized block`);
+      logger.warn(e, `Having a problem when getting finalized block`);
     }
   }
 
@@ -437,17 +449,26 @@ export class FetchService implements OnApplicationShutdown {
               .sort((a, b) => a - b);
             if (batchBlocks.length === 0) {
               // There we're no blocks in this query range, we can set a new height we're up to
-              this.blockDispatcher.latestBufferedHeight = Math.min(
-                queryEndBlock - 1,
-                dictionary._metadata.lastProcessedHeight,
+              this.blockDispatcher.enqueueBlocks(
+                [],
+                Math.min(
+                  queryEndBlock - 1,
+                  dictionary._metadata.lastProcessedHeight,
+                ),
               );
             } else {
               const maxBlockSize = Math.min(
                 batchBlocks.length,
                 this.blockDispatcher.freeSize,
               );
-              batchBlocks = batchBlocks.slice(0, maxBlockSize);
-              this.blockDispatcher.enqueueBlocks(batchBlocks);
+              const enqueuingBlocks = batchBlocks.slice(0, maxBlockSize);
+              const cleanedBatchBlocks =
+                this.filteredBlockBatch(enqueuingBlocks);
+
+              this.blockDispatcher.enqueueBlocks(
+                cleanedBatchBlocks,
+                this.getLatestBufferHeight(cleanedBatchBlocks, enqueuingBlocks),
+              );
             }
             continue; // skip nextBlockRange() way
           }
@@ -457,22 +478,52 @@ export class FetchService implements OnApplicationShutdown {
           this.eventEmitter.emit(IndexerEvent.SkipDictionary);
         }
       }
-
       const endHeight = this.nextEndBlockHeight(
         startBlockHeight,
         scaledBatchSize,
       );
 
       if (handlers.length && this.getModulos().length === handlers.length) {
+        const enqueuingBlocks = this.getEnqueuedModuloBlocks(startBlockHeight);
+        const cleanedBatchBlocks = this.filteredBlockBatch(enqueuingBlocks);
         this.blockDispatcher.enqueueBlocks(
-          this.getEnqueuedModuloBlocks(startBlockHeight),
+          cleanedBatchBlocks,
+          this.getLatestBufferHeight(cleanedBatchBlocks, enqueuingBlocks),
         );
       } else {
+        const enqueuingBlocks = range(startBlockHeight, endHeight + 1);
+        const cleanedBatchBlocks = this.filteredBlockBatch(enqueuingBlocks);
         this.blockDispatcher.enqueueBlocks(
-          range(startBlockHeight, endHeight + 1),
+          cleanedBatchBlocks,
+          this.getLatestBufferHeight(cleanedBatchBlocks, enqueuingBlocks),
         );
       }
     }
+  }
+  private getLatestBufferHeight(
+    cleanedBatchBlocks: number[],
+    rawBatchBlocks: number[],
+  ): number {
+    return Math.max(...cleanedBatchBlocks, ...rawBatchBlocks);
+  }
+  private filteredBlockBatch(currentBatchBlocks: number[]): number[] {
+    if (!this.bypassBlocks.length || !currentBatchBlocks) {
+      return currentBatchBlocks;
+    }
+
+    const cleanedBatch = cleanedBatchBlocks(
+      this.bypassBlocks,
+      currentBatchBlocks,
+    );
+
+    const pollutedBlocks = this.bypassBlocks.filter(
+      (b) => b < Math.max(...currentBatchBlocks),
+    );
+    if (pollutedBlocks.length) {
+      logger.info(`Bypassing blocks: ${pollutedBlocks}`);
+    }
+    this.bypassBlocks = without(this.bypassBlocks, ...pollutedBlocks);
+    return cleanedBatch;
   }
 
   private nextEndBlockHeight(
@@ -501,9 +552,11 @@ export class FetchService implements OnApplicationShutdown {
   }
 
   private dictionaryValidation(
-    { _metadata: metaData }: Dictionary,
-    startBlockHeight: number,
+    dictionary: { _metadata: MetaData },
+    startBlockHeight?: number,
   ): boolean {
+    if (!dictionary) return false;
+    const { _metadata: metaData } = dictionary;
     if (metaData.genesisHash !== this.api.getGenesisHash()) {
       logger.error(
         'The dictionary that you have specified does not match the chain you are indexing, it will be ignored. Please update your project manifest to reference the correct dictionary',

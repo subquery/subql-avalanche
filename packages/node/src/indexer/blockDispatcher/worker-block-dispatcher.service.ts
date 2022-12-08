@@ -6,7 +6,6 @@ import path from 'path';
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Interval } from '@nestjs/schedule';
-import { RuntimeVersion } from '@polkadot/types/interfaces';
 import {
   getLogger,
   NodeConfig,
@@ -14,7 +13,6 @@ import {
   Worker,
   AutoQueue,
 } from '@subql/node-core';
-import { SubstrateBlock } from '@subql/types';
 import chalk from 'chalk';
 import { last } from 'lodash';
 import { ProjectService } from '../project.service';
@@ -29,8 +27,6 @@ import {
 import { BaseBlockDispatcher } from './base-block-dispatcher';
 
 const logger = getLogger('WorkerBlockDispatcherService');
-
-type GetRuntimeVersion = (block: SubstrateBlock) => Promise<RuntimeVersion>;
 
 type IIndexerWorker = {
   processBlock: ProcessBlock;
@@ -73,7 +69,6 @@ export class WorkerBlockDispatcherService
 {
   private workers: IndexerWorker[];
   private numWorkers: number;
-  private getRuntimeVersion: GetRuntimeVersion;
 
   private taskCounter = 0;
   private isShutdown = false;
@@ -123,7 +118,7 @@ export class WorkerBlockDispatcherService
     }
   }
 
-  enqueueBlocks(heights: number[]): void {
+  enqueueBlocks(heights: number[], latestBufferHeight?: number): void {
     if (!heights.length) return;
     logger.info(
       `Enqueing blocks [${heights[0]}...${last(heights)}], total ${
@@ -151,7 +146,7 @@ export class WorkerBlockDispatcherService
       );
     }
 
-    this.latestBufferedHeight = last(heights);
+    this.latestBufferedHeight = latestBufferHeight ?? last(heights);
   }
 
   private enqueueBlock(height: number, workerIdx: number) {
