@@ -26,7 +26,6 @@ const logger = getLogger('Reindex');
 export class ReindexService {
   private schema: string;
   private metadataRepo: MetadataRepo;
-  private specName: string;
 
   constructor(
     private readonly sequelize: Sequelize,
