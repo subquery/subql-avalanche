@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2022-12-20
+### Update
+- Sync with main SDK (#38)
+### Fixed
+- Exit when `workers` fail to prevent missing block(#38)
+
 ## [1.10.5] - 2022-12-01
 ## Fixed
 - Fixed Dictionary queries(#34)
