@@ -22,6 +22,13 @@ export type Dictionary = {
   _metadata: MetaData;
   batchBlocks: number[];
 };
+
+export type MetadataDictionary = {
+  _metadata: MetaData;
+};
+
+const startHeightEscaped = `Cannot query field \\"startHeight\\"`;
+
 const logger = getLogger('dictionary');
 
 const distinctErrorEscaped = `Unknown argument \\"distinct\\"`;
@@ -139,6 +146,8 @@ export class DictionaryService implements OnApplicationShutdown {
   private useDistinct = true;
   readonly dictionaryEndpoint: string;
   readonly chainId: string;
+  private useStartHeight = true;
+  protected _startHeight: number;
 
   constructor(
     protected project: SubqueryProject,
@@ -192,6 +201,18 @@ export class DictionaryService implements OnApplicationShutdown {
         },
       },
     });
+  }
+
+  setDictionaryStartHeight(start: number | undefined): void {
+    // Since not all dictionary has adopt start height, if it is not set, we just consider it is 1.
+    if (this._startHeight !== undefined) {
+      return;
+    }
+    this._startHeight = start ?? 1;
+  }
+
+  get startHeight(): number {
+    return this._startHeight;
   }
 
   onApplicationShutdown(): void {
@@ -256,7 +277,7 @@ export class DictionaryService implements OnApplicationShutdown {
       if (JSON.stringify(err).includes(distinctErrorEscaped)) {
         this.useDistinct = false;
         logger.warn(`Dictionary doesn't support distinct query.`);
-        // Rerun the qeury now with distinct disabled
+        // Rerun the query now with distinct disabled
         return this.getDictionary(
           startBlock,
           queryEndBlock,
@@ -288,7 +309,9 @@ export class DictionaryService implements OnApplicationShutdown {
     const nodes: GqlNode[] = [
       {
         entity: '_metadata',
-        project: this.metadataKeys,
+        project: this.useStartHeight
+          ? this.metadataKeys
+          : this.metadataKeys.filter((obj) => obj !== 'startHeight'),
       },
     ];
     for (const entity of Object.keys(mapped)) {
@@ -345,5 +368,43 @@ export class DictionaryService implements OnApplicationShutdown {
       scaledBatchSize,
       this.getDictionaryQueryEntries(queryEndBlock),
     );
+  }
+
+  private metadataQuery(): GqlQuery {
+    const keys = ['lastProcessedHeight', 'genesisHash', 'startHeight'];
+    const nodes: GqlNode[] = [
+      {
+        entity: '_metadata',
+        project: this.useStartHeight
+          ? keys
+          : keys.filter((key) => key !== 'startHeight'),
+      },
+    ];
+    return buildQuery([], nodes);
+  }
+
+  async getMetadata(): Promise<MetadataDictionary> {
+    const { query } = this.metadataQuery();
+    console.log(`query: `, query);
+    try {
+      const resp = await timeout(
+        this.client.query({
+          query: gql(query),
+        }),
+        this.nodeConfig.dictionaryTimeout,
+      );
+      const _metadata = resp.data._metadata;
+      console.log(_metadata);
+      return { _metadata };
+    } catch (err) {
+      if (JSON.stringify(err).includes(startHeightEscaped)) {
+        this.useStartHeight = false;
+        logger.warn(`Dictionary doesn't support validate start height.`);
+        // Rerun the qeury now with distinct disabled
+        return this.getMetadata();
+      }
+      logger.warn(err, `failed to fetch specVersion result`);
+      return undefined;
+    }
   }
 }
