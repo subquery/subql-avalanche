@@ -105,6 +105,11 @@ export const yargsOptions = yargs(hideBin(process.argv))
       describe: 'Timeout for indexer sandbox to execute the mapping functions',
       type: 'number',
     },
+    'block-time': {
+      demandOption: false,
+      descibe: 'Time interval at which blocks are created',
+      type: 'number',
+    },
     debug: {
       demandOption: false,
       describe:
