@@ -16,6 +16,7 @@ export function formatBlock(block: Record<string, any>): AvalancheBlock {
     difficulty: BigNumber.from(block.difficulty).toBigInt(),
     extDataGasUsed: block.extDataGasUsed,
     extDataHash: block.extDataHash,
+    extraData: block.extraData,
     gasLimit: BigNumber.from(block.gasLimit).toBigInt(),
     gasUsed: BigNumber.from(block.gasUsed).toBigInt(),
     hash: block.hash,

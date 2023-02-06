@@ -26,6 +26,7 @@ export interface AvalancheResult extends ReadonlyArray<any> {
 export type AvalancheBlock = {
   blockExtraData: string;
   difficulty: bigint;
+  extraData: string;
   extDataGasUsed: string;
   extDataHash: string;
   gasLimit: bigint;
