@@ -8,6 +8,10 @@ All logs must start with the format: [x.y.z] - yyyy-mm-dd
 
 ## [Unreleased]
 
+## [0.2.3] - 2023-03-07
+### Update
+- `@subql/types-avalanche` dependency updated.
+
 ## [0.2.2] - 2022-12-20
 ### Added
 - Support for `bypassBlocks`
