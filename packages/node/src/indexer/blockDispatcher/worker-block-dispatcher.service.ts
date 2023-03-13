@@ -12,6 +12,8 @@ import {
   IndexerEvent,
   Worker,
   AutoQueue,
+  memoryLock,
+  SmartBatchService,
 } from '@subql/node-core';
 import chalk from 'chalk';
 import { last } from 'lodash';
@@ -23,6 +25,9 @@ import {
   NumFetchedBlocks,
   NumFetchingBlocks,
   GetWorkerStatus,
+  GetMemoryLeft,
+  waitForWorkerBatchSize,
+  ReloadDynamicDs,
 } from '../worker/worker';
 import { BaseBlockDispatcher } from './base-block-dispatcher';
 
@@ -34,6 +39,9 @@ type IIndexerWorker = {
   numFetchedBlocks: NumFetchedBlocks;
   numFetchingBlocks: NumFetchingBlocks;
   getStatus: GetWorkerStatus;
+  getMemoryLeft: GetMemoryLeft;
+  waitForWorkerBatchSize: waitForWorkerBatchSize;
+  reloadDynamicDs: ReloadDynamicDs;
 };
 
 type IInitIndexerWorker = IIndexerWorker & {
@@ -54,6 +62,9 @@ async function createIndexerWorker(): Promise<IndexerWorker> {
       'numFetchedBlocks',
       'numFetchingBlocks',
       'getStatus',
+      'getMemoryLeft',
+      'waitForWorkerBatchSize',
+      'reloadDynamicDs',
     ],
   );
 
@@ -69,6 +80,7 @@ export class WorkerBlockDispatcherService
 {
   private workers: IndexerWorker[];
   private numWorkers: number;
+  smartBatchService: SmartBatchService;
 
   private taskCounter = 0;
   private isShutdown = false;
@@ -77,6 +89,7 @@ export class WorkerBlockDispatcherService
     nodeConfig: NodeConfig,
     eventEmitter: EventEmitter2,
     projectService: ProjectService,
+    smartBatchService: SmartBatchService,
   ) {
     const numWorkers = nodeConfig.workers;
     super(
@@ -84,6 +97,7 @@ export class WorkerBlockDispatcherService
       eventEmitter,
       projectService,
       new AutoQueue(numWorkers * nodeConfig.batchSize * 2),
+      smartBatchService,
     );
     this.numWorkers = numWorkers;
   }
@@ -118,32 +132,36 @@ export class WorkerBlockDispatcherService
     }
   }
 
-  enqueueBlocks(heights: number[], latestBufferHeight?: number): void {
+  async enqueueBlocks(
+    heights: number[],
+    latestBufferHeight?: number,
+  ): Promise<void> {
     if (!heights.length) return;
     logger.info(
-      `Enqueing blocks [${heights[0]}...${last(heights)}], total ${
+      `Enqueueing blocks ${heights[0]}...${last(heights)}, total ${
         heights.length
       } blocks`,
     );
 
     // eslint-disable-next-line no-constant-condition
     if (true) {
-      /*
-       * Load balancing:
-       * worker1: 1,2,3
-       * worker2: 4,5,6
-       */
-      const workerIdx = this.getNextWorkerIndex();
-      heights.map((height) => this.enqueueBlock(height, workerIdx));
+      let startIndex = 0;
+      while (startIndex < heights.length) {
+        const workerIdx = await this.getNextWorkerIndex();
+        const batchSize = Math.min(
+          heights.length - startIndex,
+          await this.maxBatchSize(workerIdx),
+        );
+        heights
+          .slice(startIndex, startIndex + batchSize)
+          .forEach((height) => this.enqueueBlock(height, workerIdx));
+        startIndex += batchSize;
+      }
     } else {
-      /*
-       * Load balancing:
-       * worker1: 1,3,5
-       * worker2: 2,4,6
-       */
-      heights.map((height) =>
-        this.enqueueBlock(height, this.getNextWorkerIndex()),
-      );
+      heights.map(async (height) => {
+        const workerIndex = await this.getNextWorkerIndex();
+        return this.enqueueBlock(height, workerIndex);
+      });
     }
 
     this.latestBufferedHeight = latestBufferHeight ?? last(heights);
@@ -157,12 +175,15 @@ export class WorkerBlockDispatcherService
 
     // Used to compare before and after as a way to check if queue was flushed
     const bufferedHeight = this.latestBufferedHeight;
-    const pendingBlock = worker.fetchBlock(height);
 
     const processBlock = async () => {
       try {
+        await worker.waitForWorkerBatchSize(this.minimumHeapLimit);
+
         const start = new Date();
-        const result = await pendingBlock;
+        await memoryLock.acquire();
+        await worker.fetchBlock(height);
+        memoryLock.release();
         const end = new Date();
 
         if (bufferedHeight > this.latestBufferedHeight) {
@@ -183,10 +204,6 @@ export class WorkerBlockDispatcherService
           );
         }
 
-        // logger.info(
-        //   `worker ${workerIdx} processing block ${height}, fetched blocks: ${await worker.numFetchedBlocks()}, fetching blocks: ${await worker.numFetchingBlocks()}`,
-        // );
-
         this.preProcessBlock(height);
 
         const { dynamicDsCreated, operationHash, reindexBlockHeight } =
@@ -197,6 +214,11 @@ export class WorkerBlockDispatcherService
           operationHash: Buffer.from(operationHash, 'base64'),
           reindexBlockHeight,
         });
+
+        if (dynamicDsCreated) {
+          // Ensure all workers are aware of all dynamic ds
+          await Promise.all(this.workers.map((w) => w.reloadDynamicDs()));
+        }
       } catch (e) {
         logger.error(
           e,
@@ -209,6 +231,12 @@ export class WorkerBlockDispatcherService
     };
 
     void this.queue.put(processBlock);
+  }
+
+  private async maxBatchSize(workerIdx: number): Promise<number> {
+    const memLeft = await this.workers[workerIdx].getMemoryLeft();
+    if (memLeft < this.minimumHeapLimit) return 0;
+    return this.smartBatchService.safeBatchSizeForRemainingMemory(memLeft);
   }
 
   @Interval(15000)
@@ -232,11 +260,11 @@ export class WorkerBlockDispatcherService
     });
   }
 
-  private getNextWorkerIndex(): number {
-    const index = this.taskCounter % this.numWorkers;
-
-    this.taskCounter++;
-
-    return index;
+  private async getNextWorkerIndex(): Promise<number> {
+    return Promise.all(
+      this.workers.map((worker) => worker.getMemoryLeft()),
+    ).then((memoryLeftValues) => {
+      return memoryLeftValues.indexOf(Math.max(...memoryLeftValues));
+    });
   }
 }

@@ -49,7 +49,6 @@ export class WorkerService {
         }
 
         const block = this.fetchedBlocks[height];
-
         // Return info to get the runtime version, this lets the worker thread know
         return undefined;
       });

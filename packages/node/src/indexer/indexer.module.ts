@@ -11,7 +11,6 @@ import {
 } from '@subql/node-core';
 import { AvalancheApiService } from '../avalanche';
 import { SubqueryProject } from '../configure/SubqueryProject';
-import { DictionaryService } from './dictionary.service';
 import { DsProcessorService } from './ds-processor.service';
 import { DynamicDsService } from './dynamic-ds.service';
 import { IndexerManager } from './indexer.manager';
