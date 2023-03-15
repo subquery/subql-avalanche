@@ -178,7 +178,7 @@ export class BlockDispatcherService
           const height = block.blockHeight;
           try {
             this.preProcessBlock(height);
-            // Inject runtimeVersion here to enhance api.at preparation
+
             const processBlockResponse = await this.indexerManager.indexBlock(
               block,
             );

@@ -27,7 +27,6 @@ import {
   NestLogger,
   waitForBatchSize,
 } from '@subql/node-core';
-import { SpecVersion } from '../dictionary.service';
 import { DynamicDsService } from '../dynamic-ds.service';
 import { IndexerManager } from '../indexer.manager';
 import { WorkerModule } from './worker.module';
