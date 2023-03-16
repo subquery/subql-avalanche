@@ -18,9 +18,16 @@ initLogger(
 
 import assert from 'assert';
 import { threadId } from 'node:worker_threads';
+import { getHeapStatistics } from 'v8';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { registerWorker, getLogger, NestLogger } from '@subql/node-core';
+import {
+  registerWorker,
+  getLogger,
+  NestLogger,
+  waitForBatchSize,
+} from '@subql/node-core';
+import { DynamicDsService } from '../dynamic-ds.service';
 import { IndexerManager } from '../indexer.manager';
 import { WorkerModule } from './worker.module';
 import {
@@ -29,9 +36,9 @@ import {
   WorkerService,
   WorkerStatusResponse,
 } from './worker.service';
-
 let app: INestApplication;
 let workerService: WorkerService;
+let dynamicDsService: DynamicDsService;
 
 const logger = getLogger(`worker #${threadId}`);
 
@@ -53,6 +60,7 @@ async function initWorker(): Promise<void> {
     await indexerManager.start();
 
     workerService = app.get(WorkerService);
+    dynamicDsService = app.get(DynamicDsService);
   } catch (e) {
     console.log('Failed to start worker', e);
     logger.error(e, 'Failed to start worker');
@@ -62,14 +70,21 @@ async function initWorker(): Promise<void> {
 
 async function fetchBlock(height: number): Promise<FetchBlockResponse> {
   assert(workerService, 'Not initialised');
-
   return workerService.fetchBlock(height);
 }
 
 async function processBlock(height: number): Promise<ProcessBlockResponse> {
   assert(workerService, 'Not initialised');
 
-  return workerService.processBlock(height);
+  const res = await workerService.processBlock(height);
+
+  // Clean up the temp ds records for worker thread instance
+  if (res.dynamicDsCreated) {
+    const dynamicDsService = app.get(DynamicDsService);
+    dynamicDsService.deleteTempDsRecords(height);
+  }
+
+  return res;
 }
 
 // eslint-disable-next-line @typescript-eslint/require-await
@@ -92,6 +107,22 @@ async function getStatus(): Promise<WorkerStatusResponse> {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
+async function getMemoryLeft(): Promise<number> {
+  const totalHeap = getHeapStatistics().heap_size_limit;
+  const heapUsed = process.memoryUsage().heapUsed;
+
+  return totalHeap - heapUsed;
+}
+
+async function waitForWorkerBatchSize(heapSizeInBytes) {
+  await waitForBatchSize(heapSizeInBytes);
+}
+
+async function reloadDynamicDs(): Promise<void> {
+  return dynamicDsService.reloadDynamicDatasources();
+}
+
 // Register these functions to be exposed to worker host
 registerWorker({
   initWorker,
@@ -100,6 +131,9 @@ registerWorker({
   numFetchedBlocks,
   numFetchingBlocks,
   getStatus,
+  getMemoryLeft,
+  waitForWorkerBatchSize,
+  reloadDynamicDs,
 });
 
 // Export types to be used on the parent
@@ -109,6 +143,9 @@ export type ProcessBlock = typeof processBlock;
 export type NumFetchedBlocks = typeof numFetchedBlocks;
 export type NumFetchingBlocks = typeof numFetchingBlocks;
 export type GetWorkerStatus = typeof getStatus;
+export type GetMemoryLeft = typeof getMemoryLeft;
+export type waitForWorkerBatchSize = typeof waitForWorkerBatchSize;
+export type ReloadDynamicDs = typeof reloadDynamicDs;
 
 process.on('uncaughtException', (e) => {
   logger.error(e, 'Uncaught Exception');
