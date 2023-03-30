@@ -8,6 +8,10 @@ All logs must start with the format: [x.y.z] - yyyy-mm-dd
 
 ## [Unreleased]
 
+## [0.2.4] - 2023-03-31
+### Update
+- `@subql/common` dependency updated. (#50)
+
 ## [0.2.3] - 2023-03-07
 ### Update
 - `@subql/types-avalanche` dependency updated.
