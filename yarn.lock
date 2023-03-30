@@ -3294,10 +3294,10 @@ __metadata:
   resolution: "@subql/types-avalanche@workspace:packages/types-avalanche"
   dependencies:
     "@ethersproject/abstract-provider": ^5.6.1
-    "@polkadot/api": ^9
+    "@polkadot/api": ^10
     "@types/app-module-path": ^2.2.0
   peerDependencies:
-    "@polkadot/api": ^9
+    "@polkadot/api": ^10
   languageName: unknown
   linkType: soft
 

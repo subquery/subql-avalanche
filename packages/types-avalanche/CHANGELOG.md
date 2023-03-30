@@ -10,6 +10,10 @@ All logs must start with the format: [x.y.z] - yyyy-mm-dd
 
 ## [Unreleased]
 
+## [0.4.3] - 2023-03-29
+### Update
+- Update dependencies 
+
 ## [0.4.2] - 2023-03-07
 - Sync with main SDK. (#42)
 - Add extraData to block (#44)
