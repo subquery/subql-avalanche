@@ -385,7 +385,6 @@ export class DictionaryService implements OnApplicationShutdown {
 
   async getMetadata(): Promise<MetadataDictionary> {
     const { query } = this.metadataQuery();
-    console.log(`query: `, query);
     try {
       const resp = await timeout(
         this.client.query({
