@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2023-04-05
+### Fixed
+- Update `node-core` version to fix RangeError on serializing large blocks
+
 ## [1.12.1] - 2023-03-31
 ### Fixed
 - Update dependencies of `node-core` in order to fix parse BigInt in block failed. (#50)
