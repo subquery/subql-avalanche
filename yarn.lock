@@ -3119,22 +3119,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@subql/apollo-links@npm:0.2.1-9":
-  version: 0.2.1-9
-  resolution: "@subql/apollo-links@npm:0.2.1-9"
-  dependencies:
-    "@metamask/eth-sig-util": 4.0.1
-    axios: ^0.27.2
-    buffer: ^6.0.3
-    ethers: ^5.6.8
-    jwt-decode: ^3.1.2
-  peerDependencies:
-    "@apollo/client": "*"
-    graphql: "*"
-  checksum: 3b93a1779ca14be659edf0fb23b66e2ada10d2541511d470512888869cee4d5e150cdbc2bfbcf3efb602b925c8bb1da9eba0cd1c87be85ba4fca5dc2e3976ebf
-  languageName: node
-  linkType: hard
-
 "@subql/apollo-links@npm:^0.2.1-0":
   version: 0.2.1-11
   resolution: "@subql/apollo-links@npm:0.2.1-11"
@@ -3148,6 +3132,22 @@ __metadata:
     "@apollo/client": "*"
     graphql: "*"
   checksum: 067d9f960d2e0ccdc95f5f0de3ddc48c748eb0d59033f6ea522844169f35a3fb1fd82a63778adc12e2792004bd222741a30f3f51088c093dfd75562bf23e41ee
+  languageName: node
+  linkType: hard
+
+"@subql/apollo-links@npm:^0.3.3-1":
+  version: 0.3.3-1
+  resolution: "@subql/apollo-links@npm:0.3.3-1"
+  dependencies:
+    "@metamask/eth-sig-util": 4.0.1
+    axios: ^0.27.2
+    buffer: ^6.0.3
+    ethers: ^5.6.8
+    jwt-decode: ^3.1.2
+  peerDependencies:
+    "@apollo/client": "*"
+    graphql: "*"
+  checksum: eca4876d8a41d75056046e0b2ebadb7620b9374cb20fa4c01c7f61828ebeda1fca3d7705a476ca540dee5faaae692dcca4921a9713f349e2f4e0814f972733e4
   languageName: node
   linkType: hard
 
@@ -3222,7 +3222,7 @@ __metadata:
     "@subql/apollo-links": ^0.2.1-0
     "@subql/common": 1.5.0
     "@subql/common-avalanche": "workspace:*"
-    "@subql/node-core": 1.11.1
+    "@subql/node-core": 1.11.2
     "@subql/types-avalanche": "workspace:*"
     "@subql/utils": 1.4.2
     "@subql/x-merkle-mountain-range": 2.0.0-0.1.2
@@ -3263,15 +3263,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@subql/node-core@npm:1.11.1":
-  version: 1.11.1
-  resolution: "@subql/node-core@npm:1.11.1"
+"@subql/node-core@npm:1.11.2":
+  version: 1.11.2
+  resolution: "@subql/node-core@npm:1.11.2"
   dependencies:
     "@nestjs/common": ^8.2.6
     "@nestjs/event-emitter": ^1.3.0
     "@nestjs/schedule": ^1.0.2
     "@polkadot/api": 10.1.4
-    "@subql/apollo-links": 0.2.1-9
+    "@subql/apollo-links": ^0.3.3-1
     "@subql/common": 1.8.1
     "@subql/types": 1.7.2
     "@subql/utils": 1.4.2
@@ -3285,7 +3285,7 @@ __metadata:
     source-map: ^0.7.4
     vm2: ^3.9.9
     yargs: ^16.2.0
-  checksum: 6140285bffac57f2498701a0536be9211ac2e15878f4968c040201d6912d05ec82d645a84ef79ca93fba4714ebb0034d4c99805c38b24b230b8d0846a645c29b
+  checksum: 4c4bdb1e6541fa3a1d018c14b221a817cce9fd677f336fd3a42498ab177e3be3ad0ce2d5f6cdae81e90ae8089c19356543f52a7cd056393edd280f42240bc920
   languageName: node
   linkType: hard
 
