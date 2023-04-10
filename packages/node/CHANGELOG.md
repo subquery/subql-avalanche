@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] - 2023-04-11
+### Fixed
+- Fix undefined property access on options (#55)
+
 ## [1.12.2] - 2023-04-05
 ### Fixed
 - Update `node-core` version to fix RangeError on serializing large blocks
