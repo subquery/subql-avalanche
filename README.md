@@ -1,3 +1,6 @@
+### ⚠️ subql-avalanche is now deprecated and is no longer maintained. Please use [subql-ethereum](git@github.com/subquery/subql-ethereum) instead, it is actively maintained and has additional features as well as much better performance.  ⚠️
+
+
 # Welcome to SubQuery!
 
 **Flexible, reliable, and decentralised APIs for your web3 project**
